@@ -471,3 +471,155 @@ st.markdown(
     "[View dataset source]"
     "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
 )
+
+# -----------------------------------------
+# CHART 4: GAME PRICES BY GENRE
+# -----------------------------------------
+st.divider()
+
+st.header("4. Game Prices by Genre")
+
+st.subheader(
+    "How do game prices vary across "
+    "different Steam genres?"
+)
+
+st.write("""
+This box plot compares the distribution of
+game prices across popular Steam genres.
+
+Use the controls to explore how free games
+and unusually high prices affect the results.
+""")
+
+price_df = df.copy()
+
+price_df["genre"] = price_df["genres"].str.split(";")
+
+price_df = price_df.explode("genre")
+
+price_df["genre"] = price_df["genre"].str.strip()
+
+top_price_genres = (
+    price_df["genre"]
+    .value_counts()
+    .head(10)
+    .index
+    .tolist()
+)
+
+price_df = price_df[
+    price_df["genre"].isin(top_price_genres)
+].copy()
+
+exclude_free = st.checkbox(
+    "Exclude free games (£0)",
+    value=False,
+    key="exclude_free_price"
+)
+
+show_outliers = st.checkbox(
+    "Show outlier points",
+    value=True,
+    key="show_price_outliers"
+)
+
+max_price = st.slider(
+    "Maximum game price (£)",
+    min_value=10,
+    max_value=100,
+    value=100,
+    step=5,
+    key="maximum_game_price"
+)
+
+if exclude_free:
+    price_df = price_df[price_df["price"] > 0]
+
+price_df = price_df[
+    price_df["price"] <= max_price
+]
+
+fig4 = px.box(
+    price_df,
+    x="genre",
+    y="price",
+    color="genre",
+    points="outliers" if show_outliers else False,
+    title="Steam Game Price Distribution by Genre",
+    labels={
+        "genre": "Game Genre",
+        "price": "Game Price (£)"
+    },
+    color_discrete_sequence=px.colors.qualitative.Safe
+)
+
+fig4.update_layout(
+    showlegend=False,
+    xaxis_tickangle=-35,
+    height=550,
+    yaxis_tickprefix="£"
+)
+
+st.plotly_chart(
+    fig4,
+    use_container_width=True
+)
+
+st.subheader("How to Read This Chart")
+
+st.markdown("""
+- **X-axis:** Lists the 10 most common genres
+  in the Steam dataset.
+- **Y-axis:** Shows game prices in British pounds
+  (£). The line inside each box represents the
+  median price.
+- **Boxes, whiskers, and dots:** Boxes show the
+  middle 50% of prices, whiskers show the
+  typical range, and individual dots identify
+  potential outliers.
+""")
+
+st.subheader("Key Observations")
+
+price_summary = (
+    price_df.groupby("genre")["price"]
+    .agg(["median", "mean", "count"])
+    .sort_values("median", ascending=False)
+)
+
+if not price_summary.empty:
+
+    highest_genre = price_summary.index[0]
+    highest_median = price_summary.iloc[0]["median"]
+
+    lowest_genre = price_summary.index[-1]
+    lowest_median = price_summary.iloc[-1]["median"]
+
+    st.markdown(
+        f"""
+- **{highest_genre}** has the highest median
+  price among the displayed genres, at
+  **£{highest_median:.2f}**.
+- **{lowest_genre}** has the lowest median
+  price, at **£{lowest_median:.2f}**.
+- Some genres show wide price distributions,
+  indicating substantial differences between
+  inexpensive and premium-priced games.
+- Removing free games changes the distribution
+  and may change the median price rankings.
+"""
+    )
+
+st.caption(
+    "Source: Steam Store Games dataset by Nik Davis "
+    "(Kaggle), approximately 2019. Prices are "
+    "recorded in GBP. Games may belong to "
+    "multiple genres. Price filters exclude "
+    "games outside the selected range."
+)
+
+st.markdown(
+    "[View dataset source]"
+    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+)
