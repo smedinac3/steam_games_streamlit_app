@@ -623,3 +623,164 @@ st.markdown(
     "[View dataset source]"
     "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
 )
+
+
+# -----------------------------------------
+# CHART 5: STEAM GAME RELEASES OVER TIME
+# -----------------------------------------
+st.divider()
+
+st.header("5. Steam Game Releases Over Time")
+
+st.subheader(
+    "How has the number of games released "
+    "on Steam changed over time?"
+)
+
+st.write("""
+This line chart examines the number of Steam
+games released each year.
+
+Use the year range slider to explore different
+periods and identify changes in release activity.
+""")
+
+release_summary = (
+    df.dropna(subset=["release_year"])
+    .groupby("release_year")
+    .agg(game_count=("appid", "nunique"))
+    .reset_index()
+    .sort_values("release_year")
+)
+
+release_summary["release_year"] = (
+    release_summary["release_year"].astype(int)
+)
+
+min_year = int(release_summary["release_year"].min())
+max_year = int(release_summary["release_year"].max())
+
+year_range = st.slider(
+    "Select release year range",
+    min_value=min_year,
+    max_value=max_year,
+    value=(2005, max_year),
+    key="release_year_range"
+)
+
+filtered_releases = release_summary[
+    release_summary["release_year"].between(
+        year_range[0],
+        year_range[1]
+    )
+].copy()
+
+fig5 = px.line(
+    filtered_releases,
+    x="release_year",
+    y="game_count",
+    markers=True,
+    title="Number of Steam Games Released Each Year",
+    labels={
+        "release_year": "Release Year",
+        "game_count": "Number of Games Released"
+    },
+    color_discrete_sequence=["#0072B2"]
+)
+
+fig5.update_traces(
+    line=dict(width=3),
+    marker=dict(size=7),
+    hovertemplate=(
+        "Year: %{x}<br>"
+        "Games Released: %{y:,}"
+        "<extra></extra>"
+    )
+)
+
+fig5.update_layout(
+    height=500,
+    hovermode="x unified",
+    xaxis=dict(
+        dtick=1,
+        tickformat="d"
+    ),
+    yaxis=dict(
+        rangemode="tozero",
+        tickformat=","
+    )
+)
+
+if not filtered_releases.empty:
+    peak = filtered_releases.loc[
+        filtered_releases["game_count"].idxmax()
+    ]
+
+    fig5.add_annotation(
+        x=peak["release_year"],
+        y=peak["game_count"],
+        text="Highest count in selected period",
+        showarrow=True,
+        arrowhead=2,
+        ax=-90,
+        ay=-45
+    )
+
+st.plotly_chart(
+    fig5,
+    use_container_width=True
+)
+
+st.subheader("How to Read This Chart")
+
+st.markdown("""
+- **X-axis:** Shows the year in which games
+  were released.
+- **Y-axis:** Shows the number of games in
+  the dataset released during each year.
+- **Blue line and markers:** Connect annual
+  counts to show changes over time. Hover
+  over a marker to view the exact count.
+""")
+
+st.subheader("Key Observations")
+
+if not filtered_releases.empty:
+
+    peak_year = int(peak["release_year"])
+    peak_count = int(peak["game_count"])
+
+    first_row = filtered_releases.iloc[0]
+    last_row = filtered_releases.iloc[-1]
+
+    st.markdown(
+        f"""
+- **{peak_year}** has the highest number of
+  recorded releases within the selected
+  period, with **{peak_count:,} games**.
+- The dataset records
+  **{int(first_row['game_count']):,} games**
+  in {int(first_row['release_year'])}
+  and **{int(last_row['game_count']):,} games**
+  in {int(last_row['release_year'])}.
+- Annual release counts increased substantially
+  during the mid-to-late 2010s.
+- **2019 is incomplete** because the dataset
+  ends on May 1, 2019. Its count should not
+  be compared with full years as evidence
+  of a decline.
+"""
+    )
+
+st.caption(
+    "Source: Steam Store Games dataset by Nik Davis "
+    "(Kaggle). Historical records through "
+    "May 1, 2019. Counts represent games "
+    "included in this dataset, not necessarily "
+    "all Steam releases."
+)
+
+st.markdown(
+    "[View dataset source]"
+    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+)
