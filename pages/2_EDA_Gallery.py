@@ -306,3 +306,168 @@ st.markdown(
     "[View dataset source]"
     "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
 )
+
+
+# -----------------------------------------
+# CHART 3: POSITIVE RATINGS BY GENRE
+# -----------------------------------------
+st.divider()
+
+st.header("3. Positive Ratings by Genre")
+
+st.subheader(
+    "Which genres have the highest percentage "
+    "of positive player ratings?"
+)
+
+st.write("""
+This visualization compares the percentage of
+positive ratings across Steam game genres.
+
+A minimum game-count filter helps us avoid
+overemphasizing very small categories.
+""")
+
+ratings_genre_df = df.copy()
+
+ratings_genre_df["genre"] = (
+    ratings_genre_df["genres"].str.split(";")
+)
+
+ratings_genre_df = ratings_genre_df.explode("genre")
+
+ratings_genre_df["genre"] = (
+    ratings_genre_df["genre"].str.strip()
+)
+
+genre_ratings = (
+    ratings_genre_df.groupby("genre", as_index=False)
+    .agg(
+        positive=("positive_ratings", "sum"),
+        negative=("negative_ratings", "sum"),
+        game_count=("appid", "count")
+    )
+)
+
+genre_ratings["total_ratings"] = (
+    genre_ratings["positive"]
+    + genre_ratings["negative"]
+)
+
+genre_ratings["positive_pct"] = (
+    genre_ratings["positive"]
+    / genre_ratings["total_ratings"].replace(0, float("nan"))
+    * 100
+)
+
+min_games = st.slider(
+    "Minimum number of games per genre",
+    min_value=1,
+    max_value=1000,
+    value=100,
+    step=25,
+    key="genre_rating_min_games"
+)
+
+filtered_ratings = genre_ratings[
+    (genre_ratings["game_count"] >= min_games)
+    & (genre_ratings["total_ratings"] > 0)
+].copy()
+
+filtered_ratings = filtered_ratings.sort_values(
+    "positive_pct",
+    ascending=False
+)
+
+fig3 = px.scatter(
+    filtered_ratings,
+    x="positive_pct",
+    y="genre",
+    color="positive_pct",
+    size="game_count",
+    size_max=20,
+    color_continuous_scale="Viridis",
+    title="Positive Player Rating Percentage by Genre",
+    labels={
+        "positive_pct": "Positive Ratings (%)",
+        "genre": "Game Genre",
+        "game_count": "Number of Games"
+    },
+    hover_data={
+        "positive_pct": ":.2f",
+        "game_count": ":,",
+        "total_ratings": ":,"
+    }
+)
+
+fig3.update_layout(
+    yaxis={
+        "categoryorder": "array",
+        "categoryarray": filtered_ratings[
+            "genre"
+        ].tolist()[::-1]
+    },
+    xaxis_range=[0, 100],
+    coloraxis_showscale=False,
+    height=max(500, len(filtered_ratings) * 30)
+)
+
+fig3.update_traces(
+    marker=dict(
+        line=dict(width=1, color="white")
+    )
+)
+
+st.plotly_chart(
+    fig3,
+    use_container_width=True
+)
+
+st.subheader("How to Read This Chart")
+
+st.markdown("""
+- **X-axis:** Shows the percentage of positive
+  player ratings, from 0% to 100%.
+- **Y-axis:** Lists Steam game genres, ordered
+  by their positive rating percentages.
+- **Dot size and color:** Larger dots represent
+  genres containing more games. Color also
+  represents positive rating percentage.
+  Hover to see exact values.
+""")
+
+st.subheader("Key Observations")
+
+if not filtered_ratings.empty:
+
+    highest = filtered_ratings.iloc[0]
+    lowest = filtered_ratings.iloc[-1]
+
+    st.markdown(
+        f"""
+- **{highest['genre']}** has the highest
+  positive rating percentage among the
+  displayed genres, at
+  **{highest['positive_pct']:.2f}%**.
+- **{lowest['genre']}** has the lowest
+  percentage among the displayed genres,
+  at **{lowest['positive_pct']:.2f}%**.
+- Changing the minimum game count can
+  affect which genres appear in the chart.
+- These percentages are based on combined
+  rating counts, not an average of each
+  game's individual rating percentage.
+"""
+    )
+
+st.caption(
+    "Source: Steam Store Games dataset by Nik Davis "
+    "(Kaggle), approximately 2019. Genres may "
+    "overlap. Rating percentages use aggregated "
+    "positive and negative review counts."
+)
+
+st.markdown(
+    "[View dataset source]"
+    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+)
