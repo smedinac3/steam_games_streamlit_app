@@ -262,7 +262,7 @@ st.plotly_chart(
 )
 
 # HOW TO READ THE CHART
-st.subheader("📖 How to Read This Chart")
+st.subheader("How to Read This Chart")
 
 st.markdown("""
 - **Y-axis:** Lists the Steam game genres.
