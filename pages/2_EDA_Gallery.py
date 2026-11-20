@@ -23,7 +23,9 @@ st.divider()
 
 df = load_data()
 
+# -----------------------------------------
 # CHART 1: FREE VS PAID GAME RATINGS
+# -----------------------------------------
 st.header("1. Free vs. Paid Game Ratings")
 
 st.subheader(
@@ -155,6 +157,149 @@ st.caption(
     "(Kaggle). Historical data, approximately 2019. "
     "Rating percentages are calculated from recorded "
     "positive and negative rating counts."
+)
+
+st.markdown(
+    "[View dataset source]"
+    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+)
+
+
+# -----------------------------------------
+# CHART 2: ESTIMATED OWNERSHIP BY GENRE
+# -----------------------------------------
+st.divider()
+
+st.header("2. Estimated Ownership by Genre")
+
+st.subheader(
+    "Which genres have the highest "
+    "estimated ownership?"
+)
+
+st.write("""
+Steam games can belong to multiple genres.
+We will separate these genres and calculate
+the combined estimated ownership for each.
+""")
+
+genre_df = df.copy()
+
+genre_df["genre"] = (
+    genre_df["genres"].str.split(";")
+)
+
+genre_df = genre_df.explode("genre")
+
+genre_df["genre"] = genre_df["genre"].str.strip()
+
+genre_summary = (
+    genre_df.groupby("genre", as_index=False)
+    .agg(
+        estimated_owners=("estimated_owners", "sum"),
+        game_count=("appid", "count")
+    )
+    .sort_values(
+        "estimated_owners",
+        ascending=False
+    )
+)
+
+# Interactive control
+top_n = st.slider(
+    "Number of genres to display",
+    min_value=5,
+    max_value=15,
+    value=10,
+    key="genre_ownership_slider"
+)
+
+top_genres = genre_summary.head(top_n).copy()
+
+fig2 = px.bar(
+    top_genres,
+    x="estimated_owners",
+    y="genre",
+    orientation="h",
+    color="estimated_owners",
+    color_continuous_scale="Blues",
+    title="Estimated Ownership by Steam Game Genre",
+    labels={
+        "estimated_owners": "Summed Estimated Owners",
+        "genre": "Game Genre"
+    },
+    hover_data={
+        "estimated_owners": ":,.0f",
+        "game_count": True,
+        "genre": False
+    }
+)
+
+fig2.update_layout(
+    yaxis={
+        "categoryorder": "total ascending"
+    },
+    coloraxis_showscale=False,
+    height=max(450, top_n * 42),
+    xaxis_tickformat="~s"
+)
+
+top_genre = top_genres.iloc[0]
+
+fig2.add_annotation(
+    x=top_genre["estimated_owners"],
+    y=top_genre["genre"],
+    text="Highest estimated ownership",
+    showarrow=True,
+    arrowhead=2,
+    ax=-100,
+    ay=-35
+)
+
+st.plotly_chart(
+    fig2,
+    use_container_width=True
+)
+
+# HOW TO READ THE CHART
+st.subheader("📖 How to Read This Chart")
+
+st.markdown("""
+- **Y-axis:** Lists the Steam game genres.
+- **X-axis:** Shows the summed estimated
+  ownership across games in each genre.
+- **Bars and colors:** Longer, darker blue
+  bars indicate larger estimates. Hover
+  over a bar to view its value and game count.
+""")
+
+# OBSERVATIONS
+st.subheader("Key Observations")
+
+second_genre = top_genres.iloc[1]
+
+st.markdown(
+    f"""
+- **{top_genre['genre']}** has the highest
+  summed estimated ownership at approximately
+  **{top_genre['estimated_owners'] / 1e9:.2f}
+  billion** game-owner counts.
+- **{second_genre['genre']}** ranks second
+  with approximately
+  **{second_genre['estimated_owners'] / 1e9:.2f}
+  billion**.
+- Genres with many games may accumulate
+  larger ownership totals.
+- Because games can have multiple genres,
+  ownership counts overlap across categories.
+"""
+)
+
+st.caption(
+    "Source: Steam Store Games dataset by Nik Davis "
+    "(Kaggle), approximately 2019. Ownership "
+    "values are midpoints of reported ranges, "
+    "not verified sales or unique player counts."
 )
 
 st.markdown(
