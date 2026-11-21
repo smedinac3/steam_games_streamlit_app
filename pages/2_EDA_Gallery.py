@@ -29,53 +29,60 @@ df = load_data()
 st.header("1. Free vs. Paid Game Ratings")
 
 st.subheader(
-    "Do free-to-play games receive more "
-    "positive ratings than paid games?"
+    "Do free and paid Steam games receive "
+    "different percentages of positive ratings?"
 )
 
-# Group games by pricing model and add ratings
+st.write("""
+This grouped bar chart compares the proportion
+of positive and negative player ratings for
+free and paid games in the March 2025 dataset.
+""")
+
 rating_summary = (
-    df.groupby("pricing_model")[
-        ["positive_ratings", "negative_ratings"]
-    ]
-    .sum()
-    .reset_index()
+    df.groupby("pricing_model", as_index=False)
+    .agg(
+        game_count=("appid", "nunique"),
+        positive=("positive_ratings", "sum"),
+        negative=("negative_ratings", "sum")
+    )
 )
 
-# Calculate total ratings in each group
 rating_summary["total_ratings"] = (
-    rating_summary["positive_ratings"]
-    + rating_summary["negative_ratings"]
+    rating_summary["positive"]
+    + rating_summary["negative"]
 )
 
-# Calculate percentages
 rating_summary["Positive"] = (
-    rating_summary["positive_ratings"]
-    / rating_summary["total_ratings"]
+    rating_summary["positive"]
+    / rating_summary["total_ratings"].replace(
+        0, float("nan")
+    )
     * 100
 )
 
 rating_summary["Negative"] = (
-    rating_summary["negative_ratings"]
-    / rating_summary["total_ratings"]
+    rating_summary["negative"]
+    / rating_summary["total_ratings"].replace(
+        0, float("nan")
+    )
     * 100
 )
 
-# Wide data into long format
 rating_long = rating_summary.melt(
-    id_vars="pricing_model",
+    id_vars=["pricing_model", "game_count"],
     value_vars=["Positive", "Negative"],
     var_name="Rating Type",
     value_name="Percentage"
 )
 
-# Interactive grouped bar chart
-fig = px.bar(
+fig1 = px.bar(
     rating_long,
     x="pricing_model",
     y="Percentage",
     color="Rating Type",
     barmode="group",
+    text_auto=".1f",
     title="Player Rating Distribution by Pricing Model",
     labels={
         "pricing_model": "Pricing Model",
@@ -88,82 +95,82 @@ fig = px.bar(
     category_orders={
         "pricing_model": ["Free", "Paid"]
     },
-    text_auto=".1f"
+    hover_data={
+        "game_count": True
+    }
 )
 
-fig.update_layout(
+fig1.update_layout(
     yaxis_range=[0, 100],
-    legend_title_text="Rating Type",
-    hovermode="closest"
+    height=480,
+    legend_title_text="Rating Type"
 )
 
-fig.update_traces(
+fig1.update_traces(
     hovertemplate=(
-        "%{x}<br>"
-        "%{fullData.name}: %{y:.2f}%"
+        "Percentage: %{y:.2f}%"
         "<extra></extra>"
     )
 )
 
 st.plotly_chart(
-    fig,
+    fig1,
     use_container_width=True
 )
 
-# HOW TO READ THE CHART
-st.subheader("How to Read This Chart")
+st.subheader("Reading This Chart")
 
 st.markdown("""
-- **X-axis:** Separates games into free and paid
-  categories.
-- **Y-axis:** Shows the percentage of player ratings
-  in each category.
-- **Colors:** Blue represents positive ratings,
-  while orange represents negative ratings.
-  Hover over a bar to view its exact percentage.
+- **X-axis:** Separates free and paid games.
+- **Y-axis:** Shows the percentage of recorded
+  player ratings, from 0% to 100%.
+- **Bar colors:** Blue represents positive
+  ratings, while orange represents negative
+  ratings. Hover for exact percentages.
 """)
 
-# OBSERVATIONS
 st.subheader("Key Observations")
 
-free_pct = rating_summary.loc[
-    rating_summary["pricing_model"] == "Free",
-    "Positive"
+free_data = rating_summary[
+    rating_summary["pricing_model"] == "Free"
 ].iloc[0]
 
-paid_pct = rating_summary.loc[
-    rating_summary["pricing_model"] == "Paid",
-    "Positive"
+paid_data = rating_summary[
+    rating_summary["pricing_model"] == "Paid"
 ].iloc[0]
 
-difference = free_pct - paid_pct
+difference = (
+    paid_data["Positive"] - free_data["Positive"]
+)
 
 st.markdown(
     f"""
-- Free games have **{free_pct:.2f}%**
-  positive ratings.
-- Paid games have **{paid_pct:.2f}%**
-  positive ratings.
-- The difference is **{abs(difference):.2f}
-  percentage points**, indicating that
-  the overall rating distributions are similar.
-- These results describe aggregated rating counts,
-  not the average rating percentage per game.
+- Free games have a positive rating share of
+  **{free_data['Positive']:.2f}%** across
+  **{int(free_data['game_count']):,} games**.
+- Paid games have a positive rating share of
+  **{paid_data['Positive']:.2f}%** across
+  **{int(paid_data['game_count']):,} games**.
+- Paid games have a positive rating share
+  **{difference:.2f} percentage points higher**
+  than free games.
+- These percentages are calculated from total
+  recorded ratings, not the average rating
+  percentage of individual games.
 """
 )
 
 st.caption(
-    "Source: Steam Store Games dataset by Nik Davis "
-    "(Kaggle). Historical data, approximately 2019. "
-    "Rating percentages are calculated from recorded "
-    "positive and negative rating counts."
+    "Source: Steam Games Dataset, March 2025 "
+    "(ArterMiloff, Kaggle). Results describe "
+    "recorded ratings in this historical dataset. "
+    "Differences do not establish causation."
 )
 
 st.markdown(
     "[View dataset source]"
-    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+    "(https://www.kaggle.com/datasets/artermiloff/steam-games-dataset)"
 )
-
 
 # -----------------------------------------
 # CHART 2: ESTIMATED OWNERSHIP BY GENRE
