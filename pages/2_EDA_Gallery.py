@@ -433,7 +433,7 @@ fig3 = px.scatter(
     y="genre",
     size="game_count",
     color="positive_pct",
-    size_max=22,
+    size_max=32,
     color_continuous_scale="Viridis",
     title="Positive Rating Percentage by Steam Genre",
     labels={
@@ -450,16 +450,30 @@ fig3 = px.scatter(
     }
 )
 
+
+min_rating = filtered_ratings["positive_pct"].min()
+max_rating = filtered_ratings["positive_pct"].max()
+
+x_min = max(0, min_rating - 5)
+x_max = min(100, max_rating + 5)
+
 fig3.update_layout(
-    yaxis={
-        "categoryorder": "array",
-        "categoryarray": filtered_ratings[
+    xaxis=dict(
+        range=[x_min, x_max],
+        title="Positive Ratings (%)",
+        ticksuffix="%",
+        showgrid=True
+    ),
+    yaxis=dict(
+        categoryorder="array",
+        categoryarray=filtered_ratings[
             "genre"
-        ].tolist()[::-1]
-    },
-    xaxis_range=[0, 100],
+        ].tolist()[::-1],
+        title="Game Genre"
+    ),
     coloraxis_showscale=False,
-    height=max(500, len(filtered_ratings) * 35)
+    height=max(450, len(filtered_ratings) * 35),
+    margin=dict(l=40, r=30, t=60, b=40)
 )
 
 fig3.update_traces(
