@@ -337,17 +337,17 @@ st.subheader(
 )
 
 st.write("""
-This visualization compares the percentage of
-positive ratings across Steam game genres.
+This interactive dot plot compares positive
+rating percentages across Steam game genres.
 
-A minimum game-count filter helps us avoid
-overemphasizing very small categories.
+Use the filters to explore how genre rankings
+change when smaller categories are excluded.
 """)
 
 ratings_genre_df = df.copy()
 
 ratings_genre_df["genre"] = (
-    ratings_genre_df["genres"].str.split(";")
+    ratings_genre_df["genres"].fillna("").str.split(";")
 )
 
 ratings_genre_df = ratings_genre_df.explode("genre")
@@ -356,12 +356,17 @@ ratings_genre_df["genre"] = (
     ratings_genre_df["genre"].str.strip()
 )
 
+ratings_genre_df = ratings_genre_df[
+    ratings_genre_df["genre"].notna()
+    & (ratings_genre_df["genre"] != "")
+]
+
 genre_ratings = (
     ratings_genre_df.groupby("genre", as_index=False)
     .agg(
         positive=("positive_ratings", "sum"),
         negative=("negative_ratings", "sum"),
-        game_count=("appid", "count")
+        game_count=("appid", "nunique")
     )
 )
 
@@ -372,23 +377,50 @@ genre_ratings["total_ratings"] = (
 
 genre_ratings["positive_pct"] = (
     genre_ratings["positive"]
-    / genre_ratings["total_ratings"].replace(0, float("nan"))
+    / genre_ratings["total_ratings"].replace(
+        0, float("nan")
+    )
     * 100
 )
 
 min_games = st.slider(
     "Minimum number of games per genre",
     min_value=1,
-    max_value=1000,
-    value=100,
-    step=25,
+    max_value=10000,
+    value=1000,
+    step=100,
     key="genre_rating_min_games"
 )
+
+include_software = st.checkbox(
+    "Include software-related categories",
+    value=False,
+    key="include_software_genres"
+)
+
+software_genres = [
+    "Photo Editing",
+    "Animation & Modeling",
+    "Design & Illustration",
+    "Utilities",
+    "Audio Production",
+    "Video Production",
+    "Game Development",
+    "Education",
+    "Software Training"
+]
 
 filtered_ratings = genre_ratings[
     (genre_ratings["game_count"] >= min_games)
     & (genre_ratings["total_ratings"] > 0)
 ].copy()
+
+if not include_software:
+    filtered_ratings = filtered_ratings[
+        ~filtered_ratings["genre"].isin(
+            software_genres
+        )
+    ]
 
 filtered_ratings = filtered_ratings.sort_values(
     "positive_pct",
@@ -399,11 +431,11 @@ fig3 = px.scatter(
     filtered_ratings,
     x="positive_pct",
     y="genre",
-    color="positive_pct",
     size="game_count",
-    size_max=20,
+    color="positive_pct",
+    size_max=22,
     color_continuous_scale="Viridis",
-    title="Positive Player Rating Percentage by Genre",
+    title="Positive Rating Percentage by Steam Genre",
     labels={
         "positive_pct": "Positive Ratings (%)",
         "genre": "Game Genre",
@@ -412,7 +444,9 @@ fig3 = px.scatter(
     hover_data={
         "positive_pct": ":.2f",
         "game_count": ":,",
-        "total_ratings": ":,"
+        "total_ratings": ":,",
+        "positive": ":,",
+        "negative": ":,"
     }
 )
 
@@ -425,7 +459,7 @@ fig3.update_layout(
     },
     xaxis_range=[0, 100],
     coloraxis_showscale=False,
-    height=max(500, len(filtered_ratings) * 30)
+    height=max(500, len(filtered_ratings) * 35)
 )
 
 fig3.update_traces(
@@ -439,17 +473,16 @@ st.plotly_chart(
     use_container_width=True
 )
 
-st.subheader("How to Read This Chart")
+st.subheader("Reading This Chart")
 
 st.markdown("""
-- **X-axis:** Shows the percentage of positive
-  player ratings, from 0% to 100%.
-- **Y-axis:** Lists Steam game genres, ordered
-  by their positive rating percentages.
-- **Dot size and color:** Larger dots represent
-  genres containing more games. Color also
-  represents positive rating percentage.
-  Hover to see exact values.
+- **X-axis:** Shows the percentage of
+  recorded ratings that are positive.
+- **Y-axis:** Lists game genres, sorted
+  from highest to lowest positive rating share.
+- **Dots:** Larger dots represent more games.
+  Dot color represents rating percentage.
+  Hover to inspect exact values.
 """)
 
 st.subheader("Key Observations")
@@ -459,33 +492,46 @@ if not filtered_ratings.empty:
     highest = filtered_ratings.iloc[0]
     lowest = filtered_ratings.iloc[-1]
 
+    difference = (
+        highest["positive_pct"]
+        - lowest["positive_pct"]
+    )
+
     st.markdown(
         f"""
 - **{highest['genre']}** has the highest
-  positive rating percentage among the
-  displayed genres, at
-  **{highest['positive_pct']:.2f}%**.
+  positive rating share among displayed
+  genres, at **{highest['positive_pct']:.2f}%**.
 - **{lowest['genre']}** has the lowest
-  percentage among the displayed genres,
+  displayed positive rating share,
   at **{lowest['positive_pct']:.2f}%**.
-- Changing the minimum game count can
-  affect which genres appear in the chart.
-- These percentages are based on combined
-  rating counts, not an average of each
-  game's individual rating percentage.
+- The difference between the highest and
+  lowest displayed values is
+  **{difference:.2f} percentage points**.
+- Changing the minimum game count or
+  including software categories can
+  change the rankings.
 """
     )
 
+else:
+    st.info(
+        "No genres meet the selected criteria. "
+        "Try lowering the minimum game count."
+    )
+
 st.caption(
-    "Source: Steam Store Games dataset by Nik Davis "
-    "(Kaggle), approximately 2019. Genres may "
-    "overlap. Rating percentages use aggregated "
-    "positive and negative review counts."
+    "Source: Steam Games Dataset, March 2025 "
+    "(ArterMiloff, Kaggle). Percentages use "
+    "aggregated rating counts. Genres overlap, "
+    "and heavily reviewed games contribute "
+    "more to each percentage. Ratings do not "
+    "establish game quality or causation."
 )
 
 st.markdown(
     "[View dataset source]"
-    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+    "(https://www.kaggle.com/datasets/artermiloff/steam-games-dataset)"
 )
 
 # -----------------------------------------
