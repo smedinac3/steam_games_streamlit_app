@@ -67,7 +67,7 @@ df["genre_list"] = df["genres"].apply(
     ]
 )
 
-st.sidebar.header("🎛️ Dashboard Filters")
+st.sidebar.header("Dashboard Filters")
 
 all_genres = sorted({
     genre
@@ -387,13 +387,20 @@ else:
                 use_container_width=True
             )
 
+st.caption(
+    "Both charts respond to the same sidebar "
+    "filters. Genre counts may overlap because "
+    "games can belong to multiple genres. "
+    "Rating percentages are weighted by "
+    "recorded review counts."
+)
 
 # -----------------------------------------
 # FILTERED DATA EXPLORER
 # -----------------------------------------
 st.divider()
 
-with st.expander("🔎 Explore Filtered Game Data"):
+with st.expander("Explore Filtered Game Data"):
 
     st.write(
         "View the games currently included "
