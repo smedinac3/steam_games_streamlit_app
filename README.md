@@ -106,6 +106,22 @@ Important variables include:
 
 Additional derived variables include release year, pricing model, total ratings, positive rating percentage, and estimated ownership midpoint.
 
+### Data Preparation & AI Assistance
+
+The original Steam Games Dataset was obtained from [ArterMiloff on Kaggle](https://www.kaggle.com/datasets/artermiloff/steam-games-dataset).
+
+The original dataset was processed with assistance from **ChatGPT (OpenAI)** to create a smaller, analysis-ready version suitable for GitHub hosting and Streamlit deployment.
+
+The prepared dataset, `steam_2025_prepared.csv`, was used throughout the application for exploratory data analysis and interactive visualizations.
+
+ChatGPT assisted with the data preparation workflow, including preparing the dataset for more efficient storage and use in the application.
+
+**Original Data Source:** ArterMiloff, Steam Games Dataset (Kaggle)  
+**Data Preparation Assistance:** ChatGPT by OpenAI (2026)  
+**Prepared Dataset:** `data/steam_2025_prepared.csv`
+
+The prepared dataset is a derivative of the original source and should not be considered an independently collected dataset.
+
 ## Technologies Used
 
 - **Python:** Data processing and application development
@@ -237,7 +253,7 @@ Through this project, I practiced:
 - Managing a project through GitHub.
 - Deploying an interactive Python application.
 
-## AI Assistance & Acknowledgments
+## AI Assistance & Acknowledgment
 
 This project used **ChatGPT (OpenAI)** as an educational and development resource.
 
