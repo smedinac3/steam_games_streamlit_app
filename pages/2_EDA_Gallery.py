@@ -765,96 +765,168 @@ st.divider()
 st.header("5. Steam Game Releases Over Time")
 
 st.subheader(
-    "How has the number of games released "
-    "on Steam changed over time?"
+    "How has the number of Steam game "
+    "releases changed over time?"
 )
 
 st.write("""
-This line chart examines the number of Steam
-games released each year.
+This interactive line chart shows the number
+of games released each year in the March 2025
+Steam dataset.
 
-Use the year range slider to explore different
-periods and identify changes in release activity.
+Use the year-range slider to explore release
+trends across different periods.
 """)
 
-release_summary = (
-    df.dropna(subset=["release_year"])
-    .groupby("release_year")
-    .agg(game_count=("appid", "nunique"))
-    .reset_index()
+release_df = df.copy()
+
+release_df["release_date"] = pd.to_datetime(
+    release_df["release_date"],
+    errors="coerce"
+)
+
+release_df = release_df.dropna(
+    subset=["release_date"]
+).copy()
+
+release_df["release_year"] = (
+    release_df["release_date"].dt.year
+)
+
+yearly_releases = (
+    release_df.groupby(
+        "release_year",
+        as_index=False
+    )
+    .agg(
+        game_count=("appid", "nunique")
+    )
     .sort_values("release_year")
 )
 
-release_summary["release_year"] = (
-    release_summary["release_year"].astype(int)
+latest_date = release_df["release_date"].max()
+
+latest_year = int(latest_date.year)
+
+latest_year_is_partial = (
+    latest_date.month != 12
+    or latest_date.day != 31
 )
 
-min_year = int(release_summary["release_year"].min())
-max_year = int(release_summary["release_year"].max())
+min_year = int(
+    yearly_releases["release_year"].min()
+)
+
+max_year = int(
+    yearly_releases["release_year"].max()
+)
 
 year_range = st.slider(
     "Select release year range",
     min_value=min_year,
     max_value=max_year,
-    value=(2005, max_year),
+    value=(
+        max(min_year, 2010),
+        max_year
+    ),
+    step=1,
     key="release_year_range"
 )
 
-filtered_releases = release_summary[
-    release_summary["release_year"].between(
+filtered_years = yearly_releases[
+    yearly_releases["release_year"].between(
         year_range[0],
         year_range[1]
     )
 ].copy()
 
 fig5 = px.line(
-    filtered_releases,
+    filtered_years,
     x="release_year",
     y="game_count",
     markers=True,
-    title="Number of Steam Games Released Each Year",
+    title="Annual Steam Game Releases",
     labels={
         "release_year": "Release Year",
-        "game_count": "Number of Games Released"
-    },
-    color_discrete_sequence=["#0072B2"]
+        "game_count": "Number of Games"
+    }
 )
 
 fig5.update_traces(
-    line=dict(width=3),
-    marker=dict(size=7),
+    line=dict(
+        color="#0072B2",
+        width=3
+    ),
+    marker=dict(
+        size=8
+    ),
     hovertemplate=(
         "Year: %{x}<br>"
-        "Games Released: %{y:,}"
+        "Games released: %{y:,}"
         "<extra></extra>"
     )
 )
 
 fig5.update_layout(
     height=500,
-    hovermode="x unified",
     xaxis=dict(
-        dtick=1,
+        dtick=1 if year_range[1] - year_range[0] <= 15 else 2,
         tickformat="d"
     ),
     yaxis=dict(
         rangemode="tozero",
         tickformat=","
+    ),
+    margin=dict(
+        l=40,
+        r=40,
+        t=70,
+        b=50
     )
 )
 
-if not filtered_releases.empty:
-    peak = filtered_releases.loc[
-        filtered_releases["game_count"].idxmax()
+complete_years = filtered_years.copy()
+
+if latest_year_is_partial:
+    complete_years = complete_years[
+        complete_years["release_year"] < latest_year
     ]
 
+if not complete_years.empty:
+
+    peak_row = complete_years.loc[
+        complete_years["game_count"].idxmax()
+    ]
+
+    peak_year = int(peak_row["release_year"])
+    peak_count = int(peak_row["game_count"])
+
     fig5.add_annotation(
-        x=peak["release_year"],
-        y=peak["game_count"],
-        text="Highest count in selected period",
+        x=peak_year,
+        y=peak_count,
+        text=f"Peak complete year: {peak_year}",
         showarrow=True,
         arrowhead=2,
-        ax=-90,
+        ax=0,
+        ay=-55
+    )
+
+if (
+    latest_year_is_partial
+    and latest_year in filtered_years["release_year"].values
+):
+
+    partial_row = filtered_years[
+        filtered_years["release_year"] == latest_year
+    ].iloc[0]
+
+    fig5.add_annotation(
+        x=latest_year,
+        y=partial_row["game_count"],
+        text="Partial year",
+        showarrow=True,
+        arrowhead=2,
+        ax=-65,
         ay=-45
     )
 
@@ -863,56 +935,74 @@ st.plotly_chart(
     use_container_width=True
 )
 
-st.subheader("How to Read This Chart")
+st.subheader("Reading This Chart")
 
 st.markdown("""
-- **X-axis:** Shows the year in which games
-  were released.
-- **Y-axis:** Shows the number of games in
-  the dataset released during each year.
-- **Blue line and markers:** Connect annual
-  counts to show changes over time. Hover
-  over a marker to view the exact count.
+- **X-axis:** Shows the year in which
+  Steam games were released.
+- **Y-axis:** Shows the number of distinct
+  games released during each year.
+- **Line and markers:** An upward slope
+  indicates more releases than the previous
+  displayed year; a downward slope indicates
+  fewer releases. Hover for exact counts.
 """)
 
 st.subheader("Key Observations")
 
-if not filtered_releases.empty:
+if not complete_years.empty:
 
-    peak_year = int(peak["release_year"])
-    peak_count = int(peak["game_count"])
+    first_row = complete_years.iloc[0]
+    last_row = complete_years.iloc[-1]
 
-    first_row = filtered_releases.iloc[0]
-    last_row = filtered_releases.iloc[-1]
+    first_year = int(first_row["release_year"])
+    last_year = int(last_row["release_year"])
+
+    first_count = int(first_row["game_count"])
+    last_count = int(last_row["game_count"])
 
     st.markdown(
         f"""
-- **{peak_year}** has the highest number of
-  recorded releases within the selected
-  period, with **{peak_count:,} games**.
-- The dataset records
-  **{int(first_row['game_count']):,} games**
-  in {int(first_row['release_year'])}
-  and **{int(last_row['game_count']):,} games**
-  in {int(last_row['release_year'])}.
-- Annual release counts increased substantially
-  during the mid-to-late 2010s.
-- **2019 is incomplete** because the dataset
-  ends on May 1, 2019. Its count should not
-  be compared with full years as evidence
-  of a decline.
+- The highest release count among the
+  selected complete years occurred in
+  **{peak_year}**, with **{peak_count:,} games**.
+- In **{first_year}**, the dataset records
+  **{first_count:,} releases**.
+- In **{last_year}**, the dataset records
+  **{last_count:,} releases**.
+- The chart allows viewers to examine how
+  annual release counts change when different
+  time periods are selected.
 """
     )
 
+else:
+    st.info(
+        "No complete years are included in "
+        "the selected range."
+    )
+
+if latest_year_is_partial:
+
+    st.warning(
+        f"The dataset ends on "
+        f"{latest_date.strftime('%B %d, %Y')}. "
+        f"Therefore, {latest_year} is a partial "
+        "year and should not be directly "
+        "compared with complete calendar years."
+    )
+
 st.caption(
-    "Source: Steam Store Games dataset by Nik Davis "
-    "(Kaggle). Historical records through "
-    "May 1, 2019. Counts represent games "
-    "included in this dataset, not necessarily "
-    "all Steam releases."
+    "Source: Steam Games Dataset, March 2025 "
+    "(ArterMiloff, Kaggle). Counts reflect "
+    "games present in the dataset, not "
+    "necessarily every game released on Steam. "
+    "Missing or invalid release dates are "
+    "excluded. Earlier years may also have "
+    "incomplete coverage."
 )
 
 st.markdown(
     "[View dataset source]"
-    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+    "(https://www.kaggle.com/datasets/artermiloff/steam-games-dataset)"
 )
