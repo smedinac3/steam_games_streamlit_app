@@ -8,12 +8,31 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("SteamScope Interactive Dashboard")
+# -----------------------------------------
+# DASHBOARD HEADER
+# -----------------------------------------
+st.title("SteamScope Analytics")
+
+st.markdown(
+    "### Steam Game Market & Player Trends"
+)
 
 st.write(
-    "Explore Steam games, pricing, player "
-    "ratings, and release trends using the "
-    "March 2025 dataset."
+    "An interactive exploration of Steam games, "
+    "genre popularity, pricing, and player ratings "
+    "using a March 2025 dataset snapshot."
+)
+
+st.info(
+    "Use the sidebar filters to explore "
+    "different genres, pricing models, and "
+    "release periods. All dashboard metrics "
+    "and visualizations update automatically."
+)
+
+st.caption(
+    "Dataset: Steam Games Dataset | "
+    "Snapshot: March 2025"
 )
 
 df = load_data().copy()
@@ -138,41 +157,61 @@ estimated_ownership = filtered_df[
     "estimated_owners"
 ].sum(min_count=1)
 
+
 col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.metric(
-        "Total Games",
-        f"{game_count:,}"
+        label="Total Games",
+        value=f"{game_count:,}",
+        help=(
+            "Number of distinct Steam games "
+            "matching the selected filters."
+        )
     )
 
 with col2:
     st.metric(
-        "Average Price",
-        (
+        label="Average Game Price",
+        value=(
             f"{average_price:,.2f}"
             if pd.notna(average_price)
             else "N/A"
+        ),
+        help=(
+            "Average recorded game price in "
+            "dataset units. Currency is not "
+            "yet independently verified."
         )
     )
 
 with col3:
     st.metric(
-        "Positive Rating Share",
-        (
+        label="Positive Rating Share",
+        value=(
             f"{positive_share:.1f}%"
             if positive_share is not None
             else "N/A"
+        ),
+        help=(
+            "Percentage of recorded ratings "
+            "that are positive, calculated "
+            "from total rating counts."
         )
     )
 
 with col4:
     st.metric(
-        "Summed Estimated Owners",
-        (
+        label="Estimated Ownership",
+        value=(
             f"{estimated_ownership / 1e9:.2f}B"
             if pd.notna(estimated_ownership)
             else "N/A"
+        ),
+        help=(
+            "Sum of ownership-range midpoints "
+            "across selected games. This is "
+            "not a count of unique players."
         )
     )
 
@@ -347,6 +386,64 @@ else:
                 fig_ratings,
                 use_container_width=True
             )
+
+
+# -----------------------------------------
+# FILTERED DATA EXPLORER
+# -----------------------------------------
+st.divider()
+
+with st.expander("🔎 Explore Filtered Game Data"):
+
+    st.write(
+        "View the games currently included "
+        "in your dashboard filters."
+    )
+
+    display_columns = [
+        "name",
+        "release_year",
+        "genres",
+        "pricing_model",
+        "price",
+        "positive_rating_pct",
+        "estimated_owners"
+    ]
+
+    game_table = filtered_df[
+        display_columns
+    ].copy()
+
+    game_table = game_table.rename(
+        columns={
+            "name": "Game",
+            "release_year": "Release Year",
+            "genres": "Genres",
+            "pricing_model": "Pricing Model",
+            "price": "Price (Dataset Units)",
+            "positive_rating_pct": "Positive Rating (%)",
+            "estimated_owners": "Estimated Owners"
+        }
+    )
+
+    st.dataframe(
+        game_table,
+        use_container_width=True,
+        hide_index=True,
+        column_config={
+            "Positive Rating (%)": st.column_config.NumberColumn(
+                format="%.1f%%"
+            ),
+            "Estimated Owners": st.column_config.NumberColumn(
+                format="%,.0f"
+            )
+        }
+    )
+
+    st.caption(
+        f"Displaying {len(game_table):,} "
+        "games matching the current filters."
+    )
 
 st.divider()
 
