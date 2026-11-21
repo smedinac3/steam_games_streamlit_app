@@ -556,150 +556,206 @@ st.divider()
 st.header("4. Game Prices by Genre")
 
 st.subheader(
-    "How do game prices vary across "
-    "different Steam genres?"
+    "How do Steam game prices vary "
+    "across different genres?"
 )
 
 st.write("""
-This box plot compares the distribution of
-game prices across popular Steam genres.
+This interactive box plot compares game
+price distributions across Steam genres.
 
-Use the controls to explore how free games
-and unusually high prices affect the results.
+Use the controls to explore the median,
+interquartile range, and potential outliers.
 """)
 
 price_df = df.copy()
 
-price_df["genre"] = price_df["genres"].str.split(";")
+price_df["price"] = pd.to_numeric(
+    price_df["price"],
+    errors="coerce"
+)
+
+price_df = price_df[
+    price_df["price"].notna()
+    & (price_df["price"] >= 0)
+].copy()
+
+price_df["genre"] = (
+    price_df["genres"].fillna("").str.split(";")
+)
 
 price_df = price_df.explode("genre")
 
 price_df["genre"] = price_df["genre"].str.strip()
 
-top_price_genres = (
-    price_df["genre"]
-    .value_counts()
-    .head(10)
-    .index
-    .tolist()
-)
-
 price_df = price_df[
-    price_df["genre"].isin(top_price_genres)
-].copy()
+    price_df["genre"].notna()
+    & (price_df["genre"] != "")
+]
 
 exclude_free = st.checkbox(
-    "Exclude free games (£0)",
-    value=False,
-    key="exclude_free_price"
+    "Exclude free games",
+    value=True,
+    key="price_exclude_free"
 )
 
 show_outliers = st.checkbox(
-    "Show outlier points",
-    value=True,
-    key="show_price_outliers"
+    "Show individual outlier points",
+    value=False,
+    key="price_show_outliers"
+)
+
+max_available_price = float(
+    price_df["price"].max()
 )
 
 max_price = st.slider(
-    "Maximum game price (£)",
-    min_value=10,
-    max_value=100,
-    value=100,
-    step=5,
-    key="maximum_game_price"
+    "Maximum game price to include",
+    min_value=0.0,
+    max_value=max(10.0, max_available_price),
+    value=min(100.0, max(10.0, max_available_price)),
+    step=1.0,
+    key="price_max_slider"
 )
+
+filtered_prices = price_df[
+    price_df["price"] <= max_price
+].copy()
 
 if exclude_free:
-    price_df = price_df[price_df["price"] > 0]
+    filtered_prices = filtered_prices[
+        filtered_prices["price"] > 0
+    ]
 
-price_df = price_df[
-    price_df["price"] <= max_price
-]
-
-fig4 = px.box(
-    price_df,
-    x="genre",
-    y="price",
-    color="genre",
-    points="outliers" if show_outliers else False,
-    title="Steam Game Price Distribution by Genre",
-    labels={
-        "genre": "Game Genre",
-        "price": "Game Price (£)"
-    },
-    color_discrete_sequence=px.colors.qualitative.Safe
+genre_counts = (
+    filtered_prices.groupby("genre")["appid"]
+    .nunique()
+    .sort_values(ascending=False)
 )
 
-fig4.update_layout(
-    showlegend=False,
-    xaxis_tickangle=-35,
-    height=550,
-    yaxis_tickprefix="£"
-)
+top_genre_names = genre_counts.head(12).index
 
-st.plotly_chart(
-    fig4,
-    use_container_width=True
-)
+filtered_prices = filtered_prices[
+    filtered_prices["genre"].isin(top_genre_names)
+].copy()
 
-st.subheader("How to Read This Chart")
+if not filtered_prices.empty:
+
+    genre_order = (
+        filtered_prices.groupby("genre")["price"]
+        .median()
+        .sort_values(ascending=False)
+        .index.tolist()
+    )
+
+    fig4 = px.box(
+        filtered_prices,
+        x="price",
+        y="genre",
+        orientation="h",
+        color="genre",
+        points="outliers" if show_outliers else False,
+        category_orders={
+            "genre": genre_order
+        },
+        title="Steam Game Price Distribution by Genre",
+        labels={
+            "price": "Game Price (Dataset Units)",
+            "genre": "Game Genre"
+        }
+    )
+
+    fig4.update_layout(
+        showlegend=False,
+        height=650,
+        margin=dict(
+            l=40,
+            r=30,
+            t=60,
+            b=40
+        )
+    )
+
+    st.plotly_chart(
+        fig4,
+        use_container_width=True
+    )
+
+else:
+    st.warning(
+        "No games match the selected price filters. "
+        "Try increasing the maximum price."
+    )
+
+st.subheader("Reading This Chart")
 
 st.markdown("""
-- **X-axis:** Lists the 10 most common genres
-  in the Steam dataset.
-- **Y-axis:** Shows game prices in British pounds
-  (£). The line inside each box represents the
-  median price.
-- **Boxes, whiskers, and dots:** Boxes show the
-  middle 50% of prices, whiskers show the
-  typical range, and individual dots identify
-  potential outliers.
+- **Middle line inside each box:** Represents
+  the median price for that genre.
+- **Box boundaries:** Represent the 25th and
+  75th percentiles, containing the middle
+  50% of prices.
+- **Whiskers and outliers:** Show the spread
+  of prices and unusually high or low values.
+  Hover to inspect the statistics.
 """)
 
 st.subheader("Key Observations")
 
-price_summary = (
-    price_df.groupby("genre")["price"]
-    .agg(["median", "mean", "count"])
-    .sort_values("median", ascending=False)
-)
+if not filtered_prices.empty:
 
-if not price_summary.empty:
+    price_summary = (
+        filtered_prices.groupby("genre")["price"]
+        .agg(["median", "mean", "count"])
+        .sort_values("median", ascending=False)
+    )
 
-    highest_genre = price_summary.index[0]
+    highest_median_genre = price_summary.index[0]
     highest_median = price_summary.iloc[0]["median"]
 
-    lowest_genre = price_summary.index[-1]
+    lowest_median_genre = price_summary.index[-1]
     lowest_median = price_summary.iloc[-1]["median"]
 
     st.markdown(
         f"""
-- **{highest_genre}** has the highest median
-  price among the displayed genres, at
-  **£{highest_median:.2f}**.
-- **{lowest_genre}** has the lowest median
-  price, at **£{lowest_median:.2f}**.
-- Some genres show wide price distributions,
-  indicating substantial differences between
-  inexpensive and premium-priced games.
-- Removing free games changes the distribution
-  and may change the median price rankings.
+- **{highest_median_genre}** has the highest
+  median price among the displayed genres,
+  at **{highest_median:.2f} dataset units**.
+- **{lowest_median_genre}** has the lowest
+  median price among the displayed genres,
+  at **{lowest_median:.2f} dataset units**.
+- Changing the price limit or including
+  free games can substantially change
+  the price distribution.
+- Genres can overlap because individual
+  games may belong to multiple categories.
 """
     )
 
+    st.dataframe(
+        price_summary.rename(
+            columns={
+                "median": "Median Price",
+                "mean": "Mean Price",
+                "count": "Game Count"
+            }
+        ).round(2),
+        use_container_width=True
+    )
+
 st.caption(
-    "Source: Steam Store Games dataset by Nik Davis "
-    "(Kaggle), approximately 2019. Prices are "
-    "recorded in GBP. Games may belong to "
-    "multiple genres. Price filters exclude "
-    "games outside the selected range."
+    "Source: Steam Games Dataset, March 2025 "
+    "(ArterMiloff, Kaggle). Price currency "
+    "has not been independently verified. "
+    "The maximum-price filter excludes games "
+    "above the selected threshold, and genres "
+    "may overlap."
 )
 
 st.markdown(
     "[View dataset source]"
-    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+    "(https://www.kaggle.com/datasets/artermiloff/steam-games-dataset)"
 )
-
 
 # -----------------------------------------
 # CHART 5: STEAM GAME RELEASES OVER TIME
