@@ -8,21 +8,6 @@ st.set_page_config(
 
 df = load_data()
 
-st.subheader("Dataset Diagnostics")
-
-st.write("Loaded game records:", len(df))
-st.write("Loaded columns:", len(df.columns))
-
-st.write(
-    "Latest release date:",
-    df["release_date"].max()
-)
-
-st.write(
-    "First 5 games:",
-    df["name"].head()
-)
-
 st.title("SteamScope Analytics")
 st.subheader(
     "Exploring Steam Games, Player Ratings, "
