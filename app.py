@@ -19,8 +19,8 @@ st.write(
 )
 
 st.write(
-    "Data loader file:",
-    load_data.__code__.co_filename
+    "First 5 games:",
+    df["name"].head()
 )
 
 st.title("SteamScope Analytics")
