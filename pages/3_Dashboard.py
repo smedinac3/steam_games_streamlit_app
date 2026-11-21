@@ -528,3 +528,9 @@ st.markdown(
     "[Steam Games Dataset — ArterMiloff]"
     "(https://www.kaggle.com/datasets/artermiloff/steam-games-dataset)"
 )
+
+st.caption(
+    "Data source: Steam Games Dataset by ArterMiloff "
+    "(Kaggle). Dataset preparation assisted by "
+    "ChatGPT (OpenAI, 2026)."
+)
