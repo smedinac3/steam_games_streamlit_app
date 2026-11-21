@@ -1,14 +1,27 @@
-
 import streamlit as st
 from utils.data_loader import load_data
 
 st.set_page_config(
     page_title="SteamScope Analytics",
-    page_icon="🎮",
     layout="wide"
 )
 
 df = load_data()
+
+st.subheader("Dataset Diagnostics")
+
+st.write("Loaded game records:", len(df))
+st.write("Loaded columns:", len(df.columns))
+
+st.write(
+    "Latest release date:",
+    df["release_date"].max()
+)
+
+st.write(
+    "Data loader file:",
+    load_data.__code__.co_filename
+)
 
 st.title("SteamScope Analytics")
 st.subheader(
