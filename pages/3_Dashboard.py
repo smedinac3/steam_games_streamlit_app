@@ -1,56 +1,90 @@
-import streamlit as st
 import pandas as pd
 import plotly.express as px
-
+import streamlit as st
 from utils.data_loader import load_data
 
 st.set_page_config(
-    page_title="Dashboard | SteamScope",
+    page_title="SteamScope | Dashboard",
     layout="wide"
 )
 
-st.title("Steam Games Analytics Dashboard")
+st.title("SteamScope Interactive Dashboard")
 
-st.write("""
-Explore how game genres, prices, player ratings,
-and estimated ownership vary across Steam games.
+st.write(
+    "Explore Steam games, pricing, player "
+    "ratings, and release trends using the "
+    "March 2025 dataset."
+)
 
-Use the filters to update the dashboard.
-""")
+df = load_data().copy()
 
-df = load_data()
+df["price"] = pd.to_numeric(
+    df["price"], errors="coerce"
+)
 
-df["genre_list"] = df["genres"].fillna("").str.split(";")
+df["positive_ratings"] = pd.to_numeric(
+    df["positive_ratings"], errors="coerce"
+).fillna(0)
+
+df["negative_ratings"] = pd.to_numeric(
+    df["negative_ratings"], errors="coerce"
+).fillna(0)
+
+df["estimated_owners"] = pd.to_numeric(
+    df["estimated_owners"], errors="coerce"
+)
+
+df["release_year"] = pd.to_numeric(
+    df["release_year"], errors="coerce"
+)
+
+df["genres"] = df["genres"].fillna("")
+
+df["genre_list"] = df["genres"].apply(
+    lambda value: [
+        genre.strip()
+        for genre in value.split(";")
+        if genre.strip()
+    ]
+)
+
+st.sidebar.header("🎛️ Dashboard Filters")
 
 all_genres = sorted({
-    genre.strip()
+    genre
     for genres in df["genre_list"]
     for genre in genres
-    if genre.strip()
 })
-
-st.sidebar.header("Dashboard Filters")
 
 selected_genres = st.sidebar.multiselect(
     "Select game genres",
     options=all_genres,
     default=[],
-    help="Leave empty to include all genres."
+    help="Leave empty to include every genre."
 )
 
-pricing_filter = st.sidebar.selectbox(
+selected_pricing = st.sidebar.multiselect(
     "Pricing model",
-    options=["All Games", "Free", "Paid"]
+    options=["Free", "Paid"],
+    default=["Free", "Paid"]
 )
 
-min_year = int(df["release_year"].min())
-max_year = int(df["release_year"].max())
+valid_years = df["release_year"].dropna()
+
+min_year = int(valid_years.min())
+max_year = int(valid_years.max())
 
 selected_years = st.sidebar.slider(
     "Release year range",
     min_value=min_year,
     max_value=max_year,
-    value=(min_year, max_year)
+    value=(max(min_year, 2010), max_year),
+    step=1
+)
+
+st.sidebar.caption(
+    "All charts and KPIs respond to "
+    "the selected filters."
 )
 
 filtered_df = df.copy()
@@ -59,16 +93,17 @@ if selected_genres:
     filtered_df = filtered_df[
         filtered_df["genre_list"].apply(
             lambda genres: any(
-                genre.strip() in selected_genres
-                for genre in genres
+                genre in genres
+                for genre in selected_genres
             )
         )
     ]
 
-if pricing_filter != "All Games":
-    filtered_df = filtered_df[
-        filtered_df["pricing_model"] == pricing_filter
-    ]
+filtered_df = filtered_df[
+    filtered_df["pricing_model"].isin(
+        selected_pricing
+    )
+]
 
 filtered_df = filtered_df[
     filtered_df["release_year"].between(
@@ -77,242 +112,315 @@ filtered_df = filtered_df[
     )
 ]
 
-st.caption(
-    f"Showing {len(filtered_df):,} of {len(df):,} games"
-)
+st.subheader("Key Performance Indicators (KPI)")
 
-if filtered_df.empty:
-    st.warning(
-        "No games match these filters. "
-        "Try selecting a wider range."
-    )
-    st.stop()
+game_count = filtered_df["appid"].nunique()
 
-total_games = filtered_df["appid"].nunique()
+average_price = filtered_df["price"].mean()
 
-avg_price = filtered_df["price"].mean()
-
-positive_count = filtered_df["positive_ratings"].sum()
-
-negative_count = filtered_df["negative_ratings"].sum()
-
-total_ratings = positive_count + negative_count
-
-positive_pct = (
-    positive_count / total_ratings * 100
-    if total_ratings > 0
-    else 0
-)
-
-estimated_owners = filtered_df[
-    "estimated_owners"
+positive_total = filtered_df[
+    "positive_ratings"
 ].sum()
 
-st.subheader("Key Performance Indicators")
+negative_total = filtered_df[
+    "negative_ratings"
+].sum()
 
-kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+total_ratings = positive_total + negative_total
 
-with kpi1:
+positive_share = (
+    positive_total / total_ratings * 100
+    if total_ratings > 0
+    else None
+)
+
+estimated_ownership = filtered_df[
+    "estimated_owners"
+].sum(min_count=1)
+
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
     st.metric(
         "Total Games",
-        f"{total_games:,}"
+        f"{game_count:,}"
     )
 
-with kpi2:
+with col2:
     st.metric(
         "Average Price",
-        f"£{avg_price:.2f}"
+        (
+            f"{average_price:,.2f}"
+            if pd.notna(average_price)
+            else "N/A"
+        )
     )
 
-with kpi3:
+with col3:
     st.metric(
-        "Positive Ratings",
-        f"{positive_pct:.1f}%"
+        "Positive Rating Share",
+        (
+            f"{positive_share:.1f}%"
+            if positive_share is not None
+            else "N/A"
+        )
     )
 
-with kpi4:
+with col4:
     st.metric(
-        "Summed Est. Owners",
-        f"{estimated_owners / 1e6:,.1f}M"
+        "Summed Estimated Owners",
+        (
+            f"{estimated_ownership / 1e9:.2f}B"
+            if pd.notna(estimated_ownership)
+            else "N/A"
+        )
     )
 
 st.caption(
-    "Positive rating percentage is weighted by "
-    "recorded rating counts. Estimated ownership "
-    "is summed across games and does not represent "
-    "unique players."
+    "Prices are in unverified dataset units. "
+    "Ownership values are estimates summed "
+    "across games, not unique people."
 )
 
 st.divider()
 
-chart_df = filtered_df.explode("genre_list").copy()
+st.subheader("Exploring the Filtered Data")
 
-chart_df["genre"] = (
-    chart_df["genre_list"].str.strip()
-)
-
-chart_df = chart_df[
-    chart_df["genre"].notna()
-    & (chart_df["genre"] != "")
-]
-
-genre_summary = (
-    chart_df.groupby("genre", as_index=False)
-    .agg(
-        game_count=("appid", "nunique"),
-        avg_price=("price", "mean")
-    )
-    .sort_values(
-        "game_count",
-        ascending=False
-    )
-    .head(10)
-)
-
-year_summary = (
-    filtered_df.dropna(subset=["release_year"])
-    .groupby("release_year", as_index=False)
-    .agg(
-        positive=("positive_ratings", "sum"),
-        negative=("negative_ratings", "sum")
-    )
-)
-
-year_summary["total_ratings"] = (
-    year_summary["positive"]
-    + year_summary["negative"]
-)
-
-year_summary["positive_pct"] = (
-    year_summary["positive"]
-    / year_summary["total_ratings"].replace(
-        0, float("nan")
-    )
-    * 100
-)
-
-st.subheader("Interactive Visualizations")
-
-left, right = st.columns(2)
-
-with left:
-    fig_genre = px.bar(
-        genre_summary,
-        x="game_count",
-        y="genre",
-        orientation="h",
-        title="Top 10 Genres by Game Count",
-        labels={
-            "game_count": "Number of Games",
-            "genre": "Genre"
-        },
-        color_discrete_sequence=["#0072B2"],
-        hover_data={
-            "avg_price": ":.2f"
-        }
+if filtered_df.empty:
+    st.warning(
+        "No games match the selected filters. "
+        "Try changing the genre, pricing, "
+        "or release-year selections."
     )
 
-    fig_genre.update_layout(
-        yaxis={
-            "categoryorder": "total ascending"
-        },
-        height=480
+else:
+    chart_col1, chart_col2 = st.columns(2)
+
+    genre_chart_df = filtered_df[
+        ["appid", "genre_list"]
+    ].explode("genre_list")
+
+    genre_chart_df = genre_chart_df.dropna(
+        subset=["genre_list"]
     )
 
-    st.plotly_chart(
-        fig_genre,
-        use_container_width=True
+    genre_counts = (
+        genre_chart_df.groupby(
+            "genre_list",
+            as_index=False
+        )
+        .agg(
+            game_count=("appid", "nunique")
+        )
+        .sort_values(
+            "game_count",
+            ascending=False
+        )
+        .head(10)
     )
 
-with right:
-    fig_year = px.line(
-        year_summary,
-        x="release_year",
-        y="positive_pct",
-        markers=True,
-        title="Positive Rating Share by Release Year",
-        labels={
-            "release_year": "Release Year",
-            "positive_pct": "Positive Ratings (%)"
-        },
-        color_discrete_sequence=["#E69F00"]
-    )
+    with chart_col1:
 
-    fig_year.update_layout(
-        height=480,
-        yaxis_range=[0, 100],
-        xaxis=dict(
-            dtick=2,
-            tickformat="d"
+        st.markdown(
+            "#### Top 10 Genres by Game Count"
+        )
+
+        if genre_counts.empty:
+            st.info(
+                "No genre information is "
+                "available for this selection."
+            )
+        else:
+            fig_genres = px.bar(
+                genre_counts,
+                x="game_count",
+                y="genre_list",
+                orientation="h",
+                color="game_count",
+                color_continuous_scale="Blues",
+                labels={
+                    "game_count": "Number of Games",
+                    "genre_list": "Genre"
+                }
+            )
+
+            fig_genres.update_layout(
+                yaxis={
+                    "categoryorder": "total ascending"
+                },
+                coloraxis_showscale=False,
+                height=480,
+                margin=dict(
+                    l=10, r=10, t=20, b=40
+                )
+            )
+
+            st.plotly_chart(
+                fig_genres,
+                use_container_width=True
+            )
+
+    yearly_ratings = (
+        filtered_df.dropna(
+            subset=["release_year"]
+        )
+        .groupby(
+            "release_year",
+            as_index=False
+        )
+        .agg(
+            positive=("positive_ratings", "sum"),
+            negative=("negative_ratings", "sum"),
+            game_count=("appid", "nunique")
         )
     )
 
-    fig_year.update_traces(
-        hovertemplate=(
-            "Year: %{x:.0f}<br>"
-            "Positive Ratings: %{y:.2f}%"
-            "<extra></extra>"
+    yearly_ratings["total_ratings"] = (
+        yearly_ratings["positive"]
+        + yearly_ratings["negative"]
+    )
+
+    yearly_ratings["positive_pct"] = (
+        yearly_ratings["positive"]
+        / yearly_ratings[
+            "total_ratings"
+        ].replace(0, float("nan"))
+        * 100
+    )
+
+    yearly_ratings = yearly_ratings.dropna(
+        subset=["positive_pct"]
+    )
+
+    with chart_col2:
+
+        st.markdown(
+            "#### Positive Rating Share by Year"
         )
-    )
 
-    st.plotly_chart(
-        fig_year,
-        use_container_width=True
-    )
+        if yearly_ratings.empty:
+            st.info(
+                "No rating data is available "
+                "for this selection."
+            )
+        else:
+            fig_ratings = px.line(
+                yearly_ratings,
+                x="release_year",
+                y="positive_pct",
+                markers=True,
+                labels={
+                    "release_year": "Release Year",
+                    "positive_pct": (
+                        "Positive Rating Share (%)"
+                    )
+                },
+                hover_data={
+                    "game_count": True,
+                    "total_ratings": ":,"
+                }
+            )
 
-st.caption(
-    "Both charts use the same filtered dataset. "
-    "Changing any sidebar filter updates both."
-)
+            fig_ratings.update_traces(
+                line=dict(
+                    color="#0072B2",
+                    width=3
+                ),
+                marker=dict(size=7)
+            )
+
+            fig_ratings.update_layout(
+                yaxis=dict(
+                    range=[0, 100],
+                    ticksuffix="%"
+                ),
+                xaxis=dict(
+                    tickformat="d"
+                ),
+                height=480,
+                margin=dict(
+                    l=10, r=10, t=20, b=40
+                )
+            )
+
+            st.plotly_chart(
+                fig_ratings,
+                use_container_width=True
+            )
 
 st.divider()
 
 st.subheader("Dashboard Insights")
 
-if not genre_summary.empty:
-    top_genre = genre_summary.iloc[0]
+if not filtered_df.empty:
 
-    st.markdown(
-        f"- **{top_genre['genre']}** is the most "
-        f"common genre in the current selection, "
-        f"with {int(top_genre['game_count']):,} games."
+    free_count = int(
+        (filtered_df["pricing_model"] == "Free").sum()
     )
 
-st.markdown(
-    f"- The average game price in the current "
-    f"selection is **£{avg_price:.2f}**."
-)
+    paid_count = int(
+        (filtered_df["pricing_model"] == "Paid").sum()
+    )
 
-st.markdown(
-    f"- **{positive_pct:.1f}%** of recorded "
-    f"ratings in the selected games are positive."
-)
+    st.markdown(
+        f"""
+1. **Game availability:** The selected
+   filters include **{game_count:,} games**.
 
-st.markdown(
-    f"- The selection includes **{total_games:,}** "
-    f"games released between "
-    f"**{selected_years[0]} and "
-    f"{selected_years[1]}**."
-)
+2. **Pricing models:** The selection contains
+   **{free_count:,} free games** and
+   **{paid_count:,} paid games**.
+
+3. **Player ratings:** The overall positive
+   rating share is
+   **{f'{positive_share:.1f}%' if positive_share is not None else 'unavailable'}**.
+
+4. **Genre popularity:** Games may belong
+   to multiple genres, so genre counts
+   overlap.
+
+5. **Release trends:** The annual rating
+   chart shows how recorded player ratings
+   vary by game release year, not when
+   those reviews were posted.
+"""
+    )
+
+else:
+    st.info(
+        "Select a broader set of filters "
+        "to generate dashboard insights."
+    )
+
+st.subheader("Note: Data Limitations")
 
 st.markdown("""
-- **Limitations:** Ownership figures are
-  approximate, genres overlap, and the dataset
-  ends in May 2019. These patterns describe
-  associations, not causal relationships.
+- **Ownership:** Estimated ownership ranges
+  are approximations, not verified sales
+  or counts of unique players.
+- **Genre overlap:** Games can appear in
+  several genres.
+- **Rating bias:** Review counts differ
+  substantially between games. Ratings
+  may not represent all players.
+- **Currency:** The dataset's price currency
+  has not been independently verified.
+- **Coverage:** The March 2025 snapshot
+  does not represent every game released
+  after its collection date.
+- **Partial year:** 2025 is incomplete
+  and should not be directly compared
+  with full calendar years.
 """)
 
-st.divider()
-
-st.subheader("Data Source")
-
-st.markdown(
-    "[Steam Store Games — Kaggle]"
-    "(https://www.kaggle.com/datasets/nikdavis/steam-store-games)"
+st.caption(
+    "Chart labels, hover details, and "
+    "written explanations supplement color "
+    "to support accessible interpretation."
 )
 
-st.caption(
-    "Historical Steam dataset through May 1, 2019. "
-    "The app reads the CSV from its GitHub repository. "
-    "Changes to filters do not refresh the source data."
+st.markdown(
+    "**Dataset source:** "
+    "[Steam Games Dataset — ArterMiloff]"
+    "(https://www.kaggle.com/datasets/artermiloff/steam-games-dataset)"
 )
